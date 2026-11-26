@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An interactive workspace for reviewing dark patterns in a sample checkout.">
+<title>Intent Audit — Checkout review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./"><span class="logo" data-icon="logo"></span>Intent<span class="brand-accent">Audit</span></a>
+  <span class="top-rule"></span><span class="project" data-icon="box">studio-store</span><span class="top-branch" data-icon="branch">main</span>
+  <div class="top-actions"><span class="demo"><i></i> Demo workspace</span><button class="primary run" data-action="scan"><span data-icon="scan"></span> Run audit</button><button class="icon avatar" title="Demo workspace information" aria-label="Demo workspace information" data-action="about">IA</button></div>
+</header>
+<div class="workspace">
+<nav class="rail" aria-label="Workspace tools">
+<button class="icon selected" data-action="explorer" title="Toggle explorer" aria-label="Toggle explorer" data-icon="files"></button>
+<button class="icon" data-action="findings" title="Audit findings" aria-label="Audit findings" data-icon="shield"></button>
+<button class="icon" data-action="changes" title="Review changes" aria-label="Review changes" data-icon="branch"></button>
+<button class="icon rail-bottom" data-action="about" title="About this demo" aria-label="About this demo" data-icon="help"></button>
+</nav>
+<aside class="sidebar" aria-label="Project explorer">
+  <div class="side-title">EXPLORER <button class="icon" data-action="explorer" title="Collapse explorer" aria-label="Collapse explorer" data-icon="panel"></button></div>
+  <div class="tree-head"><span data-icon="down"></span> STUDIO-STORE</div>
+  <div id="tree"></div>
+  <div class="side-findings"><div class="side-title">SCAN RESULTS <span id="side-count" class="count">3</span></div><div id="finding-list"></div></div>
+  <div class="side-footer"><span data-icon="shield"></span><div><strong>Sample project</strong><br>Audit data is simulated</div></div>
+</aside>
+<main class="main">
+  <div class="tabs"><button class="workspace-tab active" data-action="preview" data-icon="globe">Live preview</button><button class="workspace-tab" data-action="editor" data-icon="code">Source code</button><button class="workspace-tab mobile-explorer" data-action="explorer" data-icon="files" aria-expanded="false">Files</button></div>
+  <div class="intro"><div class="kicker"><span data-icon="shield"></span> CHECKOUT REVIEW</div><h1>Audit workspace<span>.</span></h1><p>Trace each finding from the interface to the code.</p></div>
+  <div class="viewport-frame">
+    <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="address"><span data-icon="lock"></span> studio-store.local<span class="route">/checkout</span></div><div class="view-tools"><button class="icon active" data-action="desktop" title="Desktop viewport" aria-label="Desktop viewport" data-icon="monitor"></button><button class="icon" data-action="mobile" title="Mobile viewport" aria-label="Mobile viewport" data-icon="phone"></button></div></div>
+    <div class="preview-scroll"><div class="store" id="store"></div></div>
+  </div>
+  <section class="source" aria-label="Source code"><div class="source-head"><span class="source-label" data-icon="code">SOURCE CODE</span><span id="source-file"></span><button class="icon" data-action="expand" title="Expand source editor" aria-label="Expand source editor" data-icon="expand"></button></div><div id="source-code" tabindex="0"></div></section>
+</main>
+<aside class="assistant" aria-label="Audit agent">
+  <div class="agent-head"><div class="agent-mark" data-icon="spark"></div><div><strong>Audit agent</strong><small><i></i><span id="agent-status">Analysis complete</span></small></div><button class="icon" data-action="about" title="About this demo" aria-label="About this demo" data-icon="more"></button></div>
+  <div class="agent-tabs"><button class="active" data-panel="findings">Findings <span id="agent-count">3</span></button><button data-panel="chat">AI chat</button></div>
+  <div class="agent-scroll" id="agent-content"></div>
+  <div class="agent-bottom" id="agent-bottom"></div>
+</aside>
+</div>
+<footer class="status"><span data-icon="branch">main</span><span data-icon="shield" id="status-findings">3 open findings</span><span class="status-spacer"></span><span class="status-hide">Simulated analysis</span><span class="status-online"><i></i> Workspace ready</span></footer>
+<dialog id="modal" aria-labelledby="modal-title"></dialog>
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
