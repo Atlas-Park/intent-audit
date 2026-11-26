@@ -1,52 +1,74 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="An interactive workspace for reviewing dark patterns in a sample checkout.">
-<title>Intent Audit — Checkout review</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="멤버십 해지 동선을 따라가며 다크패턴 위험 요소를 검토하는 분석 데모.">
+  <title>Intent Audit · 멤버십 해지 동선</title>
+  <link rel="icon" href="mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="./"><span class="logo" data-icon="logo"></span>Intent<span class="brand-accent">Audit</span></a>
-  <span class="top-rule"></span><span class="project" data-icon="box">studio-store</span><span class="top-branch" data-icon="branch">main</span>
-  <div class="top-actions"><span class="demo"><i></i> Demo workspace</span><button class="primary run" data-action="scan"><span data-icon="scan"></span> Run audit</button><button class="icon avatar" title="Demo workspace information" aria-label="Demo workspace information" data-action="about">IA</button></div>
-</header>
-<div class="workspace">
-<nav class="rail" aria-label="Workspace tools">
-<button class="icon selected" data-action="explorer" title="Toggle explorer" aria-label="Toggle explorer" data-icon="files"></button>
-<button class="icon" data-action="findings" title="Audit findings" aria-label="Audit findings" data-icon="shield"></button>
-<button class="icon" data-action="changes" title="Review changes" aria-label="Review changes" data-icon="branch"></button>
-<button class="icon rail-bottom" data-action="about" title="About this demo" aria-label="About this demo" data-icon="help"></button>
-</nav>
-<aside class="sidebar" aria-label="Project explorer">
-  <div class="side-title">EXPLORER <button class="icon" data-action="explorer" title="Collapse explorer" aria-label="Collapse explorer" data-icon="panel"></button></div>
-  <div class="tree-head"><span data-icon="down"></span> STUDIO-STORE</div>
-  <div id="tree"></div>
-  <div class="side-findings"><div class="side-title">SCAN RESULTS <span id="side-count" class="count">3</span></div><div id="finding-list"></div></div>
-  <div class="side-footer"><span data-icon="shield"></span><div><strong>Sample project</strong><br>Audit data is simulated</div></div>
-</aside>
-<main class="main">
-  <div class="tabs"><button class="workspace-tab active" data-action="preview" data-icon="globe">Live preview</button><button class="workspace-tab" data-action="editor" data-icon="code">Source code</button><button class="workspace-tab mobile-explorer" data-action="explorer" data-icon="files" aria-expanded="false">Files</button></div>
-  <div class="intro"><div class="kicker"><span data-icon="shield"></span> CHECKOUT REVIEW</div><h1>Audit workspace<span>.</span></h1><p>Trace each finding from the interface to the code.</p></div>
-  <div class="viewport-frame">
-    <div class="browserbar"><div class="dots"><i></i><i></i><i></i></div><div class="address"><span data-icon="lock"></span> studio-store.local<span class="route">/checkout</span></div><div class="view-tools"><button class="icon active" data-action="desktop" title="Desktop viewport" aria-label="Desktop viewport" data-icon="monitor"></button><button class="icon" data-action="mobile" title="Mobile viewport" aria-label="Mobile viewport" data-icon="phone"></button></div></div>
-    <div class="preview-scroll"><div class="store" id="store"></div></div>
+  <header class="topbar">
+    <button class="icon sidebar-toggle" data-action="sidebar" aria-label="화면 목록 펼치기" aria-expanded="false" data-icon="panel"></button>
+    <div class="identity"><span class="brand-mark" data-icon="brand"></span><span>Intent Audit</span></div>
+    <span class="divider"></span>
+    <div class="breadcrumb"><span class="muted">프로젝트</span><span data-icon="right"></span><strong>멤버십 해지</strong></div>
+    <div class="top-actions">
+      <span class="demo-label"><i></i> 분석용 데모</span>
+      <button class="icon top-reset" data-action="reset" aria-label="시연 초기화" title="시연 초기화" data-icon="reset"></button>
+      <button class="button agent-toggle" data-action="agent" data-icon="agent" aria-expanded="true">AI 에이전트</button>
+    </div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="프로젝트 탐색">
+      <div class="project"><span class="project-icon" data-icon="route"></span><div><strong>멤버십 해지</strong><small>모바일 서비스 · 가상 프로젝트</small></div></div>
+      <div class="side-group-title"><span>동선 화면</span><span>06</span></div>
+      <nav id="page-list" aria-label="동선 화면"></nav>
+      <div class="side-group-title findings-title"><span>검토할 요소</span><span id="issue-count">04</span></div>
+      <nav id="issue-list" aria-label="검토할 요소"></nav>
+      <button class="about-link" data-action="about" data-icon="info">프로젝트 정보</button>
+    </aside>
+    <main class="main">
+      <section class="canvas-header" aria-labelledby="page-title">
+        <div class="view-label"><span data-icon="route"></span> 사용자 동선</div>
+        <h1 id="page-title">멤버십 해지 여정</h1>
+        <p>계정에서 해지 완료까지, 사용자의 선택을 따라가 보세요.</p>
+        <div class="canvas-meta">
+          <span class="legend"><i class="risk-dot"></i> 고위험</span>
+          <span class="legend"><i class="suspect-dot"></i> 맥락 확인</span>
+          <span class="meta-divider"></span>
+          <button class="text-button review-toggle" data-action="marks" aria-pressed="true" data-icon="eye">하이라이트</button>
+        </div>
+      </section>
+      <section class="canvas" id="canvas" tabindex="0" aria-label="사용자 동선 캔버스. 방향키로 이동하고 더하기, 빼기 키로 확대 또는 축소합니다.">
+        <div class="world" id="world"><svg id="edges" class="edges" aria-label="화면 연결선"></svg><div id="screens"></div></div>
+        <div class="toast" id="toast" role="status"></div>
+        <div class="canvas-tools" aria-label="캔버스 도구">
+          <button class="icon" data-action="previous" data-icon="left" aria-label="이전 화면" title="이전 화면"></button>
+          <button class="icon" data-action="next" data-icon="right" aria-label="다음 화면" title="다음 화면"></button>
+          <span></span>
+          <button class="icon" data-action="out" data-icon="minus" aria-label="축소" title="축소"></button>
+          <button class="zoom-label" id="zoom" data-action="default-view" aria-label="기본 배율로 돌아가기" title="기본 배율로 돌아가기">100%</button>
+          <button class="icon" data-action="in" data-icon="plus" aria-label="확대" title="확대"></button>
+          <span></span>
+          <button class="icon" data-action="fit" data-icon="fit" aria-label="전체 동선 보기" title="전체 동선 보기"></button>
+        </div>
+        <div class="minimap" id="minimap" aria-label="동선 탐색"></div>
+      </section>
+      <footer class="canvas-foot"><span id="canvas-summary"></span><span class="controls-hint" data-icon="hand">드래그로 이동 · Ctrl/⌘ + 스크롤로 확대·축소</span></footer>
+    </main>
+    <aside class="agent" id="agent" aria-label="AI 에이전트">
+      <header class="agent-head"><span class="agent-icon" data-icon="agent"></span><div><strong>AI 에이전트</strong><small>선택 항목에 맞춰 답변</small></div><button class="icon" data-action="agent" data-icon="panel" aria-label="AI 에이전트 접기" title="AI 에이전트 접기"></button></header>
+      <div class="agent-tabs" role="tablist" aria-label="에이전트 보기"><button data-tab="review" aria-selected="true" role="tab">검토</button><button data-tab="chat" aria-selected="false" role="tab">대화</button></div>
+      <div class="agent-body" id="agent-body" tabindex="0"></div>
+      <div class="agent-footer" id="agent-footer"></div>
+    </aside>
   </div>
-  <section class="source" aria-label="Source code"><div class="source-head"><span class="source-label" data-icon="code">SOURCE CODE</span><span id="source-file"></span><button class="icon" data-action="expand" title="Expand source editor" aria-label="Expand source editor" data-icon="expand"></button></div><div id="source-code" tabindex="0"></div></section>
-</main>
-<aside class="assistant" aria-label="Audit agent">
-  <div class="agent-head"><div class="agent-mark" data-icon="spark"></div><div><strong>Audit agent</strong><small><i></i><span id="agent-status">Analysis complete</span></small></div><button class="icon" data-action="about" title="About this demo" aria-label="About this demo" data-icon="more"></button></div>
-  <div class="agent-tabs"><button class="active" data-panel="findings">Findings <span id="agent-count">3</span></button><button data-panel="chat">AI chat</button></div>
-  <div class="agent-scroll" id="agent-content"></div>
-  <div class="agent-bottom" id="agent-bottom"></div>
-</aside>
-</div>
-<footer class="status"><span data-icon="branch">main</span><span data-icon="shield" id="status-findings">3 open findings</span><span class="status-spacer"></span><span class="status-hide">Simulated analysis</span><span class="status-online"><i></i> Workspace ready</span></footer>
-<dialog id="modal" aria-labelledby="modal-title"></dialog>
-<div id="toast" role="status"></div>
-<script src="app.js"></script>
+  <div class="popover" id="popover" role="region" aria-label="검토 요소 상세" hidden></div>
+  <dialog id="quick" aria-labelledby="quick-title"></dialog>
+  <script src="app.js"></script>
 </body>
 </html>
