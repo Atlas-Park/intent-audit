@@ -50,7 +50,34 @@ const pages = [
   {title:'해지 사유', bar:'해지 사유', detail:'서비스 개선을 위해 사용자가 해지 이유를 선택할 수 있습니다.', issue:3, edge:'현재 시연에서는 사유를 선택해야만 다음 단계로 이동할 수 있습니다.'},
   {title:'최종 확인', bar:'해지 확인', detail:'종료일과 이후 청구 여부를 확인한 뒤 해지를 확정합니다.', issue:4, edge:'유지와 해지 확정 버튼의 시각적 비중이 달라 마지막 선택을 다시 확인해야 합니다.'},
   {title:'해지 완료', bar:'처리 완료', detail:'해지 신청이 완료되면 이용 종료일과 다음 결제 상태를 알려줍니다.'},
+  {title:'내 계정', bar:'마이 모아', detail:'계정에서 멤버십 가입으로 이동합니다.', edge:'계정에서 멤버십 가입 화면으로 이동합니다.'},
+  {title:'가입 및 결제 확인', bar:'모아 멤버십', detail:'가격과 자동 결제 조건을 확인하고 등록된 결제 수단으로 가입합니다.', edge:'결제 조건을 확인하고 가입을 확정합니다.', checkpoint:'가입 및 결제 확인'},
+  {title:'가입 완료', bar:'가입 완료', detail:'가입 상태와 다음 결제일을 확인합니다.'},
 ];
+pages[2].checkpoint = '혜택 안내';
+pages[3].requiredInput = '해지 사유';
+pages[4].checkpoint = '최종 해지 확인';
+
+const routes = {
+  cancel:{label:'해지', original:[0,1,2,3,4,5], improved:[0,1,4,5]},
+  join:{label:'가입', original:[6,7,8]},
+};
+const flowIssues = {
+  3:{
+    title:'해지에만 필요한 필수 설문', kind:'취소·탈퇴 등의 방해', level:'risk',
+    article:'제21조의2 제1항 제4호 가목 참고',
+    cause:'해지 사유를 선택해야 최종 확인으로 넘어갑니다. 가입은 등록된 결제 수단으로 진행되며 추가 입력이 없습니다. 해지 처리에 사유가 필요한지 확인합니다.',
+    impact:'사유를 밝히기 어려운 이용자는 해지를 미루거나 중단할 수 있습니다.',
+    fix:'해지 사유 설문을 필수 경로에서 제거합니다.',
+  },
+  2:{
+    title:'혜택 안내와 최종 확인의 분리', kind:'반복 확인 · 맥락 확인', level:'suspect',
+    article:'제21조의2 제1항 제4호 가목 참고',
+    cause:'혜택 안내에서 해지 의사를 선택한 뒤 최종 확인에서 다시 확정해야 합니다. 두 단계가 각각 필요한지와 제공되는 정보가 겹치는지 검토합니다.',
+    impact:'해지 의사를 여러 번 표현해야 하면 이용자가 절차를 중단하거나 완료 여부를 혼동할 수 있습니다.',
+    fix:'혜택 종료일과 다음 결제 여부를 최종 확인 한 화면에서 안내합니다.',
+  },
+};
 const issues = {
   1: {
     title:'찾기 어려운 해지 링크', short:'해지 링크의 낮은 가시성', kind:'취소·탈퇴 등의 방해', level:'risk', article:'제21조의2 제1항 제4호 가목',
@@ -106,18 +133,38 @@ const state = {
   page:1, issue:1, edge:null, tab:'review', marks:true, agentOpen:!matchMedia('(max-width: 640px)').matches,
   sidebarOpen:false, applied:new Set(), reason:'', surveyError:false, messages:[],
   camera:{x:0,y:0,scale:1}, autoCamera:true, quick:null, quickTab:'compare', popover:null,
+  route:'cancel', routeFixed:false,
 };
 const position = {width:224, gap:47, height:465};
-const frameX = (index) => index * (position.width + position.gap);
-const worldWidth = frameX(pages.length - 1) + position.width;
-const pageNumber = (index) => String(index + 1).padStart(2,'0');
+const routeOf = (id) => id < 6 ? 'cancel' : 'join';
+const routeIds = (route) => state.routeFixed && route === 'cancel' ? routes.cancel.improved : routes[route].original;
+const visibleRoutes = () => state.route === 'compare' ? ['cancel','join'] : [state.route];
+const visibleIds = () => visibleRoutes().flatMap(routeIds);
+const columnX = (column) => column * (position.width + position.gap);
+const frameX = (id) => columnX(routeIds(routeOf(id)).indexOf(id));
+const frameY = (id) => state.route === 'compare' && routeOf(id) === 'join' ? position.height + 48 : 0;
+const worldWidth = () => columnX(Math.max(...visibleRoutes().map((route) => routeIds(route).length))-1) + position.width;
+const worldHeight = () => state.route === 'compare' ? position.height * 2 + 48 : position.height;
+const adjacent = (id, offset) => {
+  const ids = routeIds(routeOf(id));
+  return ids[ids.indexOf(id)+offset];
+};
+const pageNumber = (index) => countNumber(routeIds(routeOf(index)).indexOf(index)+1);
 const countNumber = (n) => String(n).padStart(2,'0');
 const chosenIssue = () => state.issue ? issues[state.issue] : null;
 const issuePage = (id) => pages.findIndex((page) => page.issue === id);
 const isApplied = (id) => state.applied.has(Number(id));
 const beforeFix = (id) => !isApplied(id);
+function activeFlow(id) {
+  if (state.routeFixed || !flowIssues[id]) return null;
+  if (id !== 3 || beforeFix(3)) return flowIssues[id];
+  return {...flowIssues[id], title:'선택형 해지 설문 단계', kind:'추가 화면 · 맥락 확인', level:'suspect',
+    cause:'사유를 입력하지 않고 진행할 수 있습니다. 별도의 설문 화면이 해지 경로에 필요한지 검토합니다.',
+    impact:'설문을 건너뛸 수 있지만 다음 단계로 가려면 설문 화면을 한 번 더 거쳐야 합니다.'};
+}
+const requiredReason = () => !state.routeFixed && beforeFix(3);
 const context = () => state.edge !== null
-  ? pages[state.edge].title + ' → ' + pages[state.edge + 1].title
+  ? pages[state.edge].title + ' → ' + pages[adjacent(state.edge,1)].title
   : pageNumber(state.page) + ' ' + pages[state.page].title + (chosenIssue() ? ' · ' + chosenIssue().short : '');
 
 function button(label, action, attr = '') {
@@ -140,13 +187,13 @@ function phone(index, fixed, mode = 'canvas') {
   const showPreview = (label, v, move = next, attrs = '') => button(label, {variant:v, next:move === next && !comparison, attr:move}, attrs);
   const wrapActions = (content) => '<div class="screen-actions">' + content + '</div>';
   let contents;
-  if (index === 0) {
+  if (index === 0 || index === 6) {
     contents = '<div class="account-person"><div class="account-avatar">' + icon('person') + '</div><div><h3>김모아 님</h3><p class="small">내 계정 정보</p></div></div>' +
       '<div class="balance"><span>모아 포인트</span><b>2,400 P</b></div>' +
       '<div class="shortcut-row"><span>' + icon('box') + '주문 내역</span><span>' + icon('heart') + '관심 상품</span><span>' + icon('receipt') + '최근 본 상품</span></div>' +
       '<div class="screen-section">쇼핑 및 구독</div><div class="screen-list">' +
       row('gift','쿠폰과 혜택') +
-      '<button class="screen-row feature route-target" ' + next + '>' + icon('circle') + '<span>모아 멤버십</span>' + icon('right') + '</button>' +
+      '<button class="screen-row feature route-target" ' + next + '>' + icon('circle') + '<span>' + (index === 6 ? '모아 멤버십 가입' : '모아 멤버십') + '</span>' + icon('right') + '</button>' +
       row('card','결제 수단') + row('truck','정기 배송') + row('support','고객센터') + '</div>';
   } else if (index === 1) {
     const cancel = showPreview('멤버십 해지' + marked, (fixed ? 'outline' : 'quiet') + markClass, next, markAttr);
@@ -173,11 +220,21 @@ function phone(index, fixed, mode = 'canvas') {
     const confirm = showPreview('해지 확정하기' + marked,'outline' + markClass,next,markAttr);
     contents = '<div class="screen-hero">' + symbol('receipt') + '<h3>해지 신청을<br>확인해 주세요</h3><p class="small">지금 확정하면 다음 결제는 진행되지 않아요.</p></div>' +
       terms() + wrapActions(showPreview('멤버십 유지하기',fixed ? 'outline' : '',keep) + confirm);
-  } else {
+  } else if (index === 5) {
     contents = '<div class="end-state">' + symbol('check') + '<h3>해지 신청이<br>완료되었어요</h3><p>12월 3일까지 멤버십 혜택을<br>계속 이용할 수 있어요.</p></div>' +
       terms() + wrapActions(showPreview('내 계정으로 돌아가기','outline',comparison ? '' : 'data-goto="0"'));
+  } else if (index === 7) {
+    contents = '<div class="member-card"><span class="tier">모아 플러스</span><strong>월 4,900원</strong><small>매월 자동 결제</small></div>' +
+      '<div class="screen-section">등록된 결제 수단</div><div class="screen-list">' + row('card','모아 카드 •••• 1234') + '</div>' +
+      '<div class="terms"><div><span>첫 결제</span><b>가입 즉시</b></div><div><span>다음 결제</span><b>한 달 후</b></div></div>' +
+      wrapActions(showPreview('결제하고 가입하기',''));
+  } else {
+    contents = '<div class="end-state">' + symbol('check') + '<h3>가입을 완료했어요</h3><p>지금부터 멤버십 혜택을 이용할 수 있어요.</p></div>' +
+      '<div class="terms"><div><span>다음 결제</span><b>한 달 후</b></div></div>' +
+      wrapActions(showPreview('내 계정으로 돌아가기','outline','data-goto="6"'));
   }
-  const back = index && !comparison ? '<button data-goto="' + (index-1) + '" aria-label="이전 단계">' + icon('left') + '</button>' : '<span></span>';
+  const previous = adjacent(index,-1);
+  const back = previous !== undefined && !comparison ? '<button data-goto="' + previous + '" aria-label="이전 단계">' + icon('left') + '</button>' : '<span></span>';
   return '<div class="phone" ' + (comparison ? 'inert' : '') + '><div class="screen-os"><span>9:41</span><span class="signals">' + icon('wifi') + icon('battery') +
     '</span></div><div class="screen-bar">' + back + '<strong>' + page.bar + '</strong><span></span></div><div class="screen-body">' + contents +
     '</div><div class="screen-home"><i></i></div></div>';
@@ -188,15 +245,17 @@ const world = $('#world');
 const agentBody = $('#agent-body');
 const quick = $('#quick');
 const popup = $('#popover');
-world.style.width = worldWidth + 'px';
-world.style.height = position.height + 'px';
 
 function renderScreens() {
-  $('#screens').innerHTML = pages.map((page,index) => {
+  world.style.width = worldWidth() + 'px';
+  world.style.height = worldHeight() + 'px';
+  $('#screens').innerHTML = visibleIds().map((index) => {
+    const page = pages[index];
     const label = '<button class="frame-title" data-page="' + index + '" aria-pressed="' + (state.page === index) + '">' +
       '<span class="frame-num">' + pageNumber(index) + '</span>' + page.title +
       (page.issue ? '<i class="' + dotClass(page.issue) + '" aria-label="' + levelName(page.issue) + '"></i>' : '') + '</button>';
-    return '<section class="frame' + (state.page === index ? ' current' : '') + '" style="left:' + frameX(index) + 'px" data-frame="' + index + '" aria-label="' + page.title + '">' +
+    const lane = state.route === 'compare' && frameX(index) === 0 ? '<span class="lane-label">' + routes[routeOf(index)].label + ' 동선</span>' : '';
+    return '<section class="frame' + (state.page === index ? ' current' : '') + '" style="left:' + frameX(index) + 'px;top:' + frameY(index) + 'px" data-frame="' + index + '" aria-label="' + routes[routeOf(index)].label + ' · ' + page.title + '">' + lane +
       label + phone(index,isApplied(page.issue)) + '</section>';
   }).join('');
   drawEdges();
@@ -205,18 +264,23 @@ function renderScreens() {
 function drawEdges() {
   const layer = $('#edges');
   const origin = world.getBoundingClientRect();
-  const actualScale = origin.width / worldWidth || 1;
-  layer.innerHTML = pages.slice(0,-1).map((page,index) => {
+  if (!origin.width) return;
+  const actualScale = origin.width / worldWidth();
+  layer.innerHTML = visibleRoutes().flatMap((route) => routeIds(route).slice(0,-1)).map((index) => {
+    const page = pages[index];
+    const next = adjacent(index,1);
+    const finding = activeFlow(index);
+    const severity = state.marks && finding ? ' edge-' + finding.level : '';
     const endpoint = $('.route-target', $('[data-frame="'+index+'"]'));
     const rect = endpoint.getBoundingClientRect();
     const y1 = (rect.top - origin.top + rect.height / 2) / actualScale;
-    const y2 = Math.max(135, Math.min(343, y1 - 45));
+    const y2 = frameY(index) + Math.max(135, Math.min(343, y1 - frameY(index) - 45));
     const x1 = frameX(index) + position.width + 2;
-    const x2 = frameX(index + 1) - 3;
+    const x2 = frameX(next) - 3;
     const c = (x1 + x2) / 2;
     const path = 'M'+x1+' '+y1+' C'+c+' '+y1+' '+c+' '+y2+' '+(x2-3)+' '+y2;
-    return '<g class="edge' + (state.edge === index ? ' selected' : '') + '" role="button" tabindex="0" data-edge="' + index +
-      '" aria-label="' + page.title + ' → ' + pages[index+1].title + ' 연결선" aria-pressed="' + (state.edge === index) + '">' +
+    return '<g class="edge' + severity + (state.edge === index ? ' selected' : '') + '" role="button" tabindex="0" data-edge="' + index +
+      '" aria-label="' + page.title + ' → ' + pages[next].title + ' 연결선' + (finding ? ' · ' + (finding.level === 'risk' ? '고위험' : '맥락 확인') : '') + '" aria-pressed="' + (state.edge === index) + '">' +
       '<path class="edge-hit" d="' + path + '"/><path class="edge-line" d="' + path + '"/><path class="edge-dash" d="' + path +
       '"/><circle class="edge-end" cx="'+x1+'" cy="'+y1+'" r="2.8"/><path class="edge-arrow" d="M'+(x2-8)+' '+(y2-4)+' L'+x2+' '+y2+' L'+(x2-8)+' '+(y2+4)+'"/></g>';
   }).join('');
@@ -225,21 +289,41 @@ function drawEdges() {
 function renderSidebar() {
   const pageList = $('#page-list');
   const issueList = $('#issue-list');
-  pageList.innerHTML = pages.map((page,index) => '<button class="side-row' + (state.page === index ? ' active' : '') + '" data-page="' + index +
+  pageList.innerHTML = visibleRoutes().map((route) => (state.route === 'compare' ? '<div class="route-side-label">' + routes[route].label + '</div>' : '') + routeIds(route).map((index) => {
+    const page = pages[index];
+    return '<button class="side-row' + (state.page === index ? ' active' : '') + '" data-page="' + index +
     '" aria-current="' + (state.page === index ? 'step' : 'false') + '">' + icon('phone') + '<span class="step-num">' + pageNumber(index) + '</span>' +
-    page.title + (page.issue ? '<span class="side-end"><i class="' + dotClass(page.issue) + '"></i></span>' : '') + '</button>').join('');
-  issueList.innerHTML = Object.entries(issues).map(([id,item]) => '<button class="side-row issue-row' + (state.issue === Number(id) ? ' active' : '') +
-    '" data-issue="' + id + '"><i class="' + dotClass(id) + '"></i>' + item.short + '</button>').join('');
-  $('#issue-count').textContent = countNumber(Object.keys(issues).length-state.applied.size);
+    page.title + (page.issue ? '<span class="side-end"><i class="' + dotClass(page.issue) + '"></i></span>' : '') + '</button>';
+  }).join('')).join('');
+  const uiIssues = visibleIds().map((id) => pages[id].issue).filter(Boolean);
+  issueList.innerHTML = uiIssues.map((id) => '<button class="side-row issue-row' + (state.issue === id ? ' active' : '') +
+    '" data-issue="' + id + '"><i class="' + dotClass(id) + '"></i>' + issues[id].short + '</button>').join('') ||
+    '<p class="side-empty">표시된 검토 요소가 없어요.</p>';
+  $('#page-count').textContent = countNumber(visibleIds().length);
+  $('#issue-count').textContent = countNumber(uiIssues.filter(beforeFix).length);
+  const hasCancel = state.route !== 'join';
+  $('#flow-count').textContent = countNumber(hasCancel && !state.routeFixed ? Object.keys(flowIssues).length : 0);
+  $('#flow-issues').innerHTML = !hasCancel ? '<p class="side-empty">표시된 검토 구간이 없어요.</p>' : state.routeFixed ?
+    '<button class="side-row issue-row" data-flow-quick><i class="fixed-dot"></i> 적용된 동선 개선안</button>' :
+    Object.keys(flowIssues).map(Number).map((id) => {
+      const item = activeFlow(id);
+      return '<button class="side-row issue-row' + (state.edge === id ? ' active' : '') +
+        '" data-flow-edge="' + id + '"><i class="' + item.level + '-dot"></i>' + item.title + '</button>';
+    }).join('');
 }
 
 function renderNav() {
-  $('#minimap').innerHTML = pages.map((page,index) => '<button data-page="' + index + '" class="' + (state.page === index ? 'active' : '') +
-    '" aria-label="' + page.title + '" title="' + page.title + '"></button>').join('');
-  $('[data-action="previous"]').disabled = state.page === 0;
-  $('[data-action="next"]').disabled = state.page === pages.length - 1;
+  $('#minimap').innerHTML = visibleRoutes().map((route) => '<div>' + routeIds(route).map((index) => {
+    const label = routes[route].label + ' · ' + pages[index].title;
+    return '<button data-page="' + index + '" class="' + (state.page === index ? 'active' : '') + '" aria-label="' + label + '" title="' + label + '"></button>';
+  }).join('') + '</div>').join('');
+  $('[data-action="previous"]').disabled = adjacent(state.page,-1) === undefined;
+  $('[data-action="next"]').disabled = adjacent(state.page,1) === undefined;
   $('[data-action="marks"]').setAttribute('aria-pressed', state.marks);
-  $('#canvas-summary').textContent = '화면 6개 · 검토 ' + (4-state.applied.size) + '개' + (state.applied.size ? ' · 수정 적용 ' + state.applied.size + '개' : '');
+  const displayedIssues = visibleIds().map((id) => pages[id].issue).filter(Boolean);
+  const applied = displayedIssues.filter(isApplied).length;
+  $('#canvas-summary').textContent = '화면 ' + visibleIds().length + '개 · 검토 ' + (displayedIssues.length-applied) + '개' +
+    (applied ? ' · 화면 수정 ' + applied + '개' : '') + (state.routeFixed && state.route !== 'join' ? ' · 동선 개선 적용' : '');
 }
 
 const dotClass = (id) => isApplied(id) ? 'fixed-dot' : issues[id].level + '-dot';
@@ -248,12 +332,16 @@ const badge = (id) => '<span class="level ' + (isApplied(id) ? 'fixed' : issues[
 const sourceLink = (href,text) => '<a class="source-link" href="' + href + '" target="_blank" rel="noopener noreferrer">' + text + icon('link') + '</a>';
 const section = (name,label,body) => '<section class="agent-section"><h3>' + icon(name) + label + '</h3>' + body + '</section>';
 const optionButton = (id,label) => '<button class="agent-choice" data-issue="' + id + '"><i class="' + dotClass(id) + '"></i>' + label + icon('right') + '</button>';
+const flowBadge = (item) => '<span class="level ' + item.level + '">' + (item.level === 'risk' ? '고위험' : '맥락 확인') + '</span>';
+const flowSources = (item) => sourceLink(law,item.article) + sourceLink(guide,'공정거래위원회 가이드라인');
+const flowPreviewButton = () => '<button class="button primary" data-flow-quick>' + icon('route') + '동선 개선안 보기</button>';
 
 function renderAgent() {
   $$('.agent-tabs button').forEach((el) => el.setAttribute('aria-selected',el.dataset.tab === state.tab));
   const current = chosenIssue();
   const page = pages[state.page];
   const linkPage = state.edge !== null ? pages[state.edge] : null;
+  const flow = activeFlow(state.edge);
   const contextLine = '<div class="context-line">' + icon(linkPage ? 'route' : 'phone') + context() + '</div>';
   const footer = $('#agent-footer');
   if (state.tab === 'chat') {
@@ -262,16 +350,27 @@ function renderAgent() {
       '<div class="prompt-list">' + prompts.map((prompt) => '<button data-prompt="' + prompt + '">' + prompt + '</button>').join('') + '</div>' +
       '<div role="log" aria-label="대화 내용">' + state.messages.map((entry) => '<div class="chat-message' + (entry.user ? ' user' : '') +
         '"><b>' + (entry.user ? '나' : 'AI 에이전트') + '</b><p>' + escape(entry.text) + '</p>' +
-        (entry.suggestion ? '<button class="text-button" data-quick="' + entry.suggestion + '">수정 방향 선택 ' + icon('right') + '</button>' : '') +
+        (entry.suggestion === 'flow' ? '<button class="text-button" data-flow-quick>동선 개선안 보기 ' + icon('right') + '</button>' :
+          entry.suggestion && visibleIds().includes(issuePage(entry.suggestion)) ? '<button class="text-button" data-quick="' + entry.suggestion + '">수정 방향 선택 ' + icon('right') + '</button>' : '') +
         '</div>').join('') + '</div>';
     footer.innerHTML = '<form class="composer"><input name="message" aria-label="에이전트에 질문" placeholder="선택 항목에 관해 질문하기…" maxlength="240" autocomplete="off"><button class="button primary" aria-label="질문 보내기">' + icon('send') + '</button></form>';
     return;
   }
   const note = '<p class="note">위험도는 가상 사례의 검토 우선순위를 뜻합니다. 위법 여부는 실제 동선과 운영 맥락을 바탕으로 판단합니다.</p>';
-  if (linkPage) {
+  if (flow) {
+    agentBody.innerHTML = contextLine +
+      '<div class="agent-issue">' + flowBadge(flow) + '<h2>' + flow.title + '</h2><p>' + flow.kind + '</p></div>' +
+      section('search','탐지 사유','<p>' + flow.cause + '</p>') +
+      section('book','관련 법령 및 가이드라인',flowSources(flow)) +
+      section('person','소비자 영향','<p>' + flow.impact + '</p>') +
+      section('route','동선 개선 방안','<p>' + flow.fix + '</p>') +
+      (linkPage.issue ? section('info','관련 화면 요소',optionButton(linkPage.issue,issues[linkPage.issue].short)) : '') + note;
+  } else if (linkPage) {
     const issue = linkPage.issue;
-    agentBody.innerHTML = contextLine + '<div class="agent-issue"><h2>화면 전환 검토</h2><p>' + (issue && isApplied(issue) ? '수정안이 적용된 화면에서 다음 단계로 이동합니다.' : linkPage.edge) + '</p></div>' +
-      section('route','이동 경로','<p>' + pages[state.edge].title + ' → ' + pages[state.edge+1].title + '</p>') +
+    const description = state.routeFixed && state.edge === 1 ? '관리 화면에서 최종 확인으로 바로 이동합니다.' :
+      issue && isApplied(issue) ? '수정안이 적용된 화면에서 다음 단계로 이동합니다.' : linkPage.edge;
+    agentBody.innerHTML = contextLine + '<div class="agent-issue"><h2>화면 전환 검토</h2><p>' + description + '</p></div>' +
+      section('route','이동 경로','<p>' + context() + '</p>') +
       section('info','관련 요소',issue ? optionButton(issue,issues[issue].short) : '<p>이 연결선에는 검토할 요소가 없습니다.</p>');
   } else if (current) {
     agentBody.innerHTML = contextLine +
@@ -286,7 +385,34 @@ function renderAgent() {
   }
   const suggested = state.issue || (linkPage ? linkPage.issue : page.issue);
   footer.innerHTML = '<button class="button secondary" data-tab="chat">' + icon('agent') + '질문하기</button>' +
-    (suggested ? '<button class="button primary" data-quick="' + suggested + '">' + icon('code') + '수정안 보기</button>' : '');
+    (flow ? flowPreviewButton() : suggested ? '<button class="button primary" data-quick="' + suggested + '">' + icon('code') + '수정안 보기</button>' : '');
+}
+
+function routeStats(ids, needsReason = requiredReason()) {
+  const steps = ids.map((id) => pages[id]);
+  const required = steps.filter((page) => page.requiredInput && needsReason);
+  const checkpoints = steps.filter((page) => page.checkpoint);
+  return {
+    screens:steps.length, clicks:steps.length - 1 + required.length,
+    input:required.map((page) => page.requiredInput).join(', ') || '없음',
+    checks:checkpoints.length + '회 · ' + checkpoints.map((page) => page.checkpoint).join(', '),
+  };
+}
+
+function renderRoutes() {
+  const comparison = state.route === 'compare';
+  $('#page-title').textContent = comparison ? '가입·해지 동선 비교' : '멤버십 ' + routes[state.route].label + ' 여정';
+  $('#page-description').textContent = comparison ? '같은 계정에서 시작하는 두 경로를 비교해 보세요.' : state.route === 'join' ?
+    '계정에서 가입 완료까지, 결제 조건과 가입 경로를 확인해 보세요.' : '계정에서 해지 완료까지, 사용자의 선택을 따라가 보세요.';
+  $$('[data-route]').forEach((button) => button.setAttribute('aria-pressed',button.dataset.route === state.route));
+  const summary = $('#route-comparison');
+  summary.hidden = !comparison;
+  if (!comparison) return;
+  const join = routeStats(routeIds('join'));
+  const cancel = routeStats(routeIds('cancel'));
+  summary.innerHTML = '<table aria-label="가입 및 해지 단계 비교"><thead><tr><th scope="col">동선</th><th scope="col">페이지</th><th scope="col">필수 클릭</th><th scope="col">필수 입력</th><th scope="col">확인 절차</th></tr></thead>' +
+    '<tbody>' + [['가입',join],['해지',cancel]].map(([name,stats]) => '<tr><th scope="row">' + name + '</th><td>' + stats.screens + '개</td><td>' + stats.clicks + '회</td><td>' + stats.input + '</td><td>' + stats.checks + '</td></tr>').join('') +
+    '</tbody></table><p>필수 클릭은 완료까지 필요한 이동과 입력 선택을 포함합니다. 단계 차이는 각 절차의 필요성과 함께 검토합니다.</p>';
 }
 
 function renderChrome() {
@@ -299,6 +425,7 @@ function renderChrome() {
 
 function render() {
   renderChrome();
+  renderRoutes();
   renderScreens();
   renderSidebar();
   renderNav();
@@ -317,22 +444,29 @@ function updateCamera(animate = false) {
 const clamp = (value,min,max) => Math.min(max,Math.max(min,value));
 
 function defaultCamera(animate = false) {
+  if (state.route === 'compare') {
+    fitCamera(animate,true);
+    return;
+  }
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   const maxWidth = width > 700 ? 1.03 : width > 445 ? .78 : .86;
-  const scale = clamp(Math.min((height-87)/position.height,maxWidth,width > 445 ? (width-20)/frameX(3) : (width-21)/position.width),.32,1.03);
+  const scale = clamp(Math.min((height-87)/position.height,maxWidth,width > 445 ? (width-20)/columnX(3) : (width-21)/position.width),.32,1.03);
   const y = clamp((height-50-position.height*scale)*.4,12,75);
-  const start = width < 445 && state.page > 0 ? clamp(state.page-1,0,pages.length-2) : clamp(state.page-1,0,pages.length-3);
-  state.camera = {scale, x:(width > 700 ? 28 : 17)-frameX(start)*scale, y};
+  const ids = routeIds(state.route);
+  const start = clamp(ids.indexOf(state.page)-1,0,ids.length-(width < 445 ? 2 : 3));
+  state.camera = {scale, x:(width > 700 ? 28 : 17)-columnX(start)*scale, y};
   state.autoCamera = true;
   updateCamera(animate);
 }
 
-function fitCamera() {
-  const scale = clamp(Math.min((canvas.clientWidth-24)/worldWidth,(canvas.clientHeight-70)/position.height),.14,1.12);
-  state.camera = {scale,x:(canvas.clientWidth-worldWidth*scale)/2,y:Math.max(10,(canvas.clientHeight-45-position.height*scale)/2)};
-  state.autoCamera = false;
-  updateCamera(true);
+function fitCamera(animate = true, automatic = false) {
+  const height = worldHeight();
+  const width = worldWidth();
+  const scale = clamp(Math.min((canvas.clientWidth-24)/width,(canvas.clientHeight-70)/height),.14,1.12);
+  state.camera = {scale,x:(canvas.clientWidth-width*scale)/2,y:Math.max(10,(canvas.clientHeight-45-height*scale)/2)};
+  state.autoCamera = automatic;
+  updateCamera(animate);
 }
 
 function moveToPage(index, animate = true) {
@@ -340,10 +474,15 @@ function moveToPage(index, animate = true) {
   const width = canvas.clientWidth;
   const start = x + frameX(index)*scale;
   const end = start + position.width*scale;
-  if (start >= 10 && end <= width-10 && y >= 0 && y < canvas.clientHeight-100) return;
+  const top = y + frameY(index)*scale;
+  const visibleHeight = canvas.clientHeight - 52;
+  const bottom = top + position.height*scale;
+  if (start >= 10 && end <= width-10 && top >= 0 && bottom <= visibleHeight) return;
   const nextX = width/2-(frameX(index)+position.width/2)*scale;
-  state.camera.x = clamp(nextX,width-worldWidth*scale-24,26);
-  state.camera.y = clamp((canvas.clientHeight-50-position.height*scale)*.4,11,74);
+  if (start < 10 || end > width-10) state.camera.x = clamp(nextX,Math.min(26,width-worldWidth()*scale-24),26);
+  if (top < 0 || bottom > visibleHeight) {
+    state.camera.y = clamp((visibleHeight-position.height*scale)*.4,11,74) - frameY(index)*scale;
+  }
   updateCamera(animate);
 }
 
@@ -357,7 +496,7 @@ function zoomBy(factor, x=canvas.clientWidth/2, y=(canvas.clientHeight-37)/2) {
 }
 
 function selectPage(index, opt = {}) {
-  if (!pages[index]) return;
+  if (!visibleIds().includes(index)) return;
   hidePopover();
   state.page = index;
   state.issue = opt.issue || null;
@@ -374,21 +513,41 @@ function selectPage(index, opt = {}) {
 }
 
 function nextFrom(index) {
-  if (index === 3 && beforeFix(3) && !state.reason) {
+  if (index === 3 && requiredReason() && !state.reason) {
     state.surveyError = true;
     selectPage(3,{issue:3});
     toast('해지 사유를 선택해야 이동할 수 있어요.');
     return;
   }
   state.surveyError = false;
-  const target = index + 1;
+  const target = adjacent(index,1);
   selectPage(target,{focus:'page'});
   if (target === 5) toast('가상 멤버십 해지 신청이 완료되었어요.');
+  if (target === 8) toast('가상 멤버십 가입이 완료되었어요.');
 }
 
 function selectIssue(id, open = true) {
   state.tab = 'review';
   selectPage(issuePage(id),{issue:id,open});
+}
+
+function selectEdge(index) {
+  state.tab = 'review';
+  selectPage(index,{edge:index,open:true,focus:'edge'});
+}
+
+function switchRoute(route) {
+  if (state.route === route) return;
+  hidePopover();
+  state.route = route;
+  if (route !== 'compare' && route !== routeOf(state.page)) {
+    state.page = route === 'join' ? 6 : 1;
+    state.issue = null;
+    state.edge = null;
+  }
+  if (state.sidebarOpen) state.sidebarOpen = false;
+  render();
+  defaultCamera(false);
 }
 
 let toastTimer;
@@ -410,14 +569,26 @@ function deferHide() {
 }
 function showPopover(anchor) {
   clearTimeout(popTimer);
-  const id = Number(anchor.dataset.flag);
-  if (state.popover === id && !popup.hidden) return;
-  const item = issues[id];
-  state.popover = id;
-  popup.innerHTML = '<div class="popover-top">' + badge(id) + '<button class="icon" data-action="close-pop" aria-label="검토 팝오버 닫기">' + icon('close') + '</button></div>' +
-    '<h3>' + item.kind + '</h3><p><b>탐지 사유</b> ' + item.cause + '</p>' + sourceLink(law,item.article) +
-    sourceLink(guide,'공정위 가이드라인') + '<p><b>소비자 영향</b> ' + item.impact + '</p>' +
-    '<button class="button primary" data-quick="' + id + '">수정 방안 보기 ' + icon('right') + '</button>';
+  if (state.popover === anchor && !popup.hidden) return;
+  state.popover = anchor;
+  const close = '<button class="icon" data-action="close-pop" aria-label="검토 팝오버 닫기">' + icon('close') + '</button>';
+  const edge = anchor.dataset.edge;
+  if (edge !== undefined) {
+    const index = Number(edge);
+    const item = activeFlow(index);
+    popup.innerHTML = '<div class="popover-top">' + (item ? flowBadge(item) : '<small class="muted">화면 전환</small>') + close + '</div>' +
+      '<h3>' + pages[index].title + ' → ' + pages[adjacent(index,1)].title + '</h3>' +
+      (item ? '<p><b>' + item.kind + '</b></p><p>' + item.cause + '</p>' + flowSources(item) +
+        '<p><b>소비자 영향</b> ' + item.impact + '</p><p><b>동선 개선</b> ' + item.fix + '</p>' + flowPreviewButton() :
+        '<p>' + (state.routeFixed && index === 1 ? '혜택 이용 종료일과 이후 결제 여부를 최종 확인에서 안내합니다.' : '이 연결선에 표시된 동선 위험 요소가 없어요.') + '</p>');
+  } else {
+    const id = Number(anchor.dataset.flag);
+    const item = issues[id];
+    popup.innerHTML = '<div class="popover-top">' + badge(id) + close + '</div>' +
+      '<h3>' + item.kind + '</h3><p><b>탐지 사유</b> ' + item.cause + '</p>' + sourceLink(law,item.article) +
+      sourceLink(guide,'공정위 가이드라인') + '<p><b>소비자 영향</b> ' + item.impact + '</p>' +
+      '<button class="button primary" data-quick="' + id + '">수정 방안 보기 ' + icon('right') + '</button>';
+  }
   popup.hidden = false;
   const bounds = anchor.getBoundingClientRect();
   const width = popup.offsetWidth;
@@ -468,6 +639,91 @@ function openQuick(id) {
   hidePopover();
   renderQuick();
 }
+
+function flowPreviewLane(title, ids, stats) {
+  const removed = (id) => ids === routes.cancel.original && !routes.cancel.improved.includes(id);
+  return '<section class="flow-preview-lane"><h3>' + title + '</h3><ol>' + ids.map((id) =>
+    '<li' + (removed(id) ? ' class="removed"' : '') + '>' + pages[id].title + (removed(id) ? '<small>제거</small>' : '') + '</li>').join('') +
+    '</ol><p>페이지 ' + stats.screens + '개 · 필수 클릭 ' + stats.clicks + '회 · 필수 입력 ' + stats.input + '</p></section>';
+}
+
+function openFlowQuick() {
+  quickReturnFocus = popup.contains(document.activeElement) ? state.popover : document.activeElement;
+  state.quick = null;
+  hidePopover();
+  quick.innerHTML = quickHeader('해지 동선 간소화','동선 개선안 미리보기') +
+    '<div class="flow-preview">' +
+    flowPreviewLane('개선 전 동선',routes.cancel.original,routeStats(routes.cancel.original,beforeFix(3))) +
+    flowPreviewLane('개선 동선',routes.cancel.improved,routeStats(routes.cancel.improved,false)) +
+    '<p>혜택 이용 기한과 다음 결제 여부는 최종 확인에서 안내합니다. 해지 사유는 필수 경로에서 제거합니다.</p></div>' +
+    '<footer class="quick-footer"><button class="button secondary" data-action="close-quick">닫기</button><button class="button primary" data-action="apply-flow">' +
+    icon(state.routeFixed ? 'reset' : 'check') + (state.routeFixed ? '적용 되돌리기' : '수정 적용') + '</button></footer>';
+  quick.showModal();
+}
+
+function routeSnapshot() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  const frames = new Map($$('#screens .frame').map((frame) => [frame.dataset.frame,frame]));
+  const edges = $('#edges').cloneNode(false);
+  edges.removeAttribute('id');
+  edges.classList.add('route-ghost');
+  edges.style.width = world.style.width;
+  edges.style.height = world.style.height;
+  $$('[data-edge="1"],[data-edge="2"],[data-edge="3"],[data-edge="4"]',$('#edges')).forEach((edge) => {
+    const ghost = edge.cloneNode(true);
+    ghost.removeAttribute('data-edge');
+    ghost.removeAttribute('tabindex');
+    edges.append(ghost);
+  });
+  return {frames,edges};
+}
+
+function animateRoute(snapshot) {
+  if (!snapshot) return;
+  const timing = {duration:380,easing:'cubic-bezier(.22,.75,.24,1)'};
+  for (const id of routes.cancel.original) {
+    const previous = snapshot.frames.get(String(id));
+    const current = $('#screens [data-frame="' + id + '"]');
+    if (previous && current) {
+      const dx = parseFloat(previous.style.left) - parseFloat(current.style.left);
+      if (dx) current.animate([{transform:'translateX(' + dx + 'px)'},{transform:'translateX(0)'}],timing);
+    } else if (previous) {
+      previous.classList.add('route-ghost');
+      previous.removeAttribute('data-frame');
+      $$('[id]',previous).forEach((node) => node.removeAttribute('id'));
+      previous.inert = true;
+      world.append(previous);
+      previous.animate([{opacity:1},{opacity:0,transform:'translateY(-12px)'}],{...timing,duration:240}).onfinish = () => previous.remove();
+    } else if (current) {
+      current.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],timing);
+    }
+  }
+  snapshot.edges.inert = true;
+  snapshot.edges.setAttribute('aria-hidden','true');
+  world.prepend(snapshot.edges);
+  snapshot.edges.animate([{opacity:1},{opacity:0}],{...timing,duration:210}).onfinish = () => snapshot.edges.remove();
+  $$('[data-edge="1"],[data-edge="2"],[data-edge="3"],[data-edge="4"]',$('#edges')).forEach((edge) =>
+    edge.animate([{opacity:0},{opacity:0,offset:.42},{opacity:1}],timing));
+}
+
+function applyFlow() {
+  const snapshot = routeSnapshot();
+  state.routeFixed = !state.routeFixed;
+  state.surveyError = false;
+  const wasOnJoin = routeOf(state.page) === 'join';
+  if (state.route === 'join') state.route = 'cancel';
+  if (wasOnJoin || !visibleIds().includes(state.page)) state.page = 1;
+  state.issue = null;
+  state.edge = null;
+  state.sidebarOpen = false;
+  quick.close();
+  render();
+  moveToPage(state.page);
+  animateRoute(snapshot);
+  canvas.focus({preventScroll:true});
+  toast(state.routeFixed ? '혜택 안내와 설문을 제거하고 최종 확인으로 연결했어요.' : '기존 해지 동선으로 되돌렸어요.');
+}
+
 function about() {
   state.quick = null;
   quickReturnFocus = document.activeElement;
@@ -495,10 +751,14 @@ function sendMessage(value) {
   if (!message) return;
   const id = state.issue || pages[state.edge ?? state.page].issue;
   const item = issues[id];
+  const flow = activeFlow(state.edge);
   const topic = context();
   let response;
   let suggestion;
-  if (!item) {
+  if (flow) {
+    response = /수정|개선|변경|방향|대안/.test(message) ? flow.fix : flow.cause + ' ' + flow.impact + ' ' + flow.article + '를 참고할 수 있어요.';
+    suggestion = 'flow';
+  } else if (!item) {
     const page = pages[state.edge ?? state.page];
     response = (state.edge === null ? page.detail : page.edge) + ' 시연 데이터에서는 이 위치에 표시된 위험 요소가 없습니다.';
   } else if (/지표|검증|성과|효과|ctr|cvr|전환|신뢰|이탈/i.test(message)) {
@@ -512,7 +772,7 @@ function sendMessage(value) {
     response = item.impact + ' 제안하는 방향은 ‘' + item.fix + '’입니다. ' + item.reason;
     suggestion = id;
   }
-  state.messages.push({user:true,text:message},{user:false,text:'[' + topic + '] ' + (id && isApplied(id) ? '시연 수정안이 적용되어 있어요. ' : '') + response,suggestion});
+  state.messages.push({user:true,text:message},{user:false,text:'[' + topic + '] ' + (!flow && id && isApplied(id) ? '시연 수정안이 적용되어 있어요. ' : '') + response,suggestion});
   renderAgent();
   agentBody.scrollTop = agentBody.scrollHeight;
   $('.composer input')?.focus({preventScroll:true});
@@ -525,11 +785,14 @@ function setTab(tab) {
   agentBody.scrollTop = 0;
   renderAgent();
 }
-function reset() {
+function resetWorkspace() {
   state.applied.clear();
-  Object.assign(state,{page:1,issue:1,edge:null,tab:'review',marks:true,reason:'',surveyError:false,messages:[]});
+  Object.assign(state,{page:1,issue:1,edge:null,tab:'review',marks:true,reason:'',surveyError:false,messages:[],route:'cancel',routeFixed:false,sidebarOpen:false});
   hidePopover();
   render();
+}
+function reset() {
+  resetWorkspace();
   defaultCamera(true);
   toast('시연을 처음 상태로 돌렸어요.');
 }
@@ -540,9 +803,10 @@ const actions = {
     if (!state.agentOpen) $('.agent-toggle').focus({preventScroll:true});
   },
   sidebar() {state.sidebarOpen = !state.sidebarOpen; renderChrome();},
+  projects() {showProjectPicker();},
   marks() {state.marks = !state.marks; hidePopover(); renderScreens(); renderNav();},
-  previous() {selectPage(state.page-1);},
-  next() {selectPage(state.page+1);},
+  previous() {selectPage(adjacent(state.page,-1));},
+  next() {selectPage(adjacent(state.page,1));},
   in() {hidePopover(); zoomBy(1.15);},
   out() {hidePopover(); zoomBy(1/1.15);},
   fit() {hidePopover(); fitCamera();},
@@ -551,6 +815,7 @@ const actions = {
   'close-pop'() {hidePopover();},
   apply() {applyQuick(false);},
   undo() {applyQuick(true);},
+  'apply-flow'() {applyFlow();},
   about,
   reset,
 };
@@ -558,15 +823,16 @@ document.addEventListener('click',(event) => {
   if (event.target === quick) {quick.close(); return;}
   const edge = event.target.closest('[data-edge]');
   if (edge) {
-    const index = Number(edge.dataset.edge);
-    state.tab = 'review';
-    selectPage(index,{edge:index,open:true,focus:'edge'});
+    selectEdge(Number(edge.dataset.edge));
     return;
   }
   const button = event.target.closest('button');
   if (!button) return;
-  const {action,page,issue,goto,next,tab,quick:quickId,quickTab,prompt} = button.dataset;
+  const {action,page,issue,goto,next,tab,quick:quickId,quickTab,prompt,route,flowEdge,flowQuick} = button.dataset;
   if (action) actions[action]();
+  if (route) switchRoute(route);
+  if (flowEdge !== undefined) selectEdge(Number(flowEdge));
+  if (flowQuick !== undefined) openFlowQuick();
   if (page !== undefined) selectPage(Number(page),{focus:'page'});
   if (issue) selectIssue(Number(issue));
   if (goto !== undefined) selectPage(Number(goto),{focus:'page'});
@@ -594,21 +860,22 @@ document.addEventListener('submit',(event) => {
   event.preventDefault();
   sendMessage(new FormData(event.target).get('message'));
 });
+const popoverTrigger = '[data-flag],[data-edge]';
 canvas.addEventListener('pointerover',(event) => {
-  const target = event.target.closest('[data-flag]');
+  const target = event.target.closest(popoverTrigger);
   if (target && event.pointerType !== 'touch') showPopover(target);
 });
 canvas.addEventListener('pointerout',(event) => {
-  const target = event.target.closest('[data-flag]');
+  const target = event.target.closest(popoverTrigger);
   if (target && !target.contains(event.relatedTarget)) deferHide();
 });
 canvas.addEventListener('focusin',(event) => {
-  const target = event.target.closest('[data-flag]');
+  const target = event.target.closest(popoverTrigger);
   if (target && target.matches(':focus-visible')) showPopover(target);
 });
 document.addEventListener('focusout',(event) => {
-  if (!popup.hidden && (popup.contains(event.target) || event.target.closest?.('[data-flag]')) &&
-      !popup.contains(event.relatedTarget) && !event.relatedTarget?.closest?.('[data-flag]')) deferHide();
+  if (!popup.hidden && (popup.contains(event.target) || event.target.closest?.(popoverTrigger)) &&
+      !popup.contains(event.relatedTarget) && !event.relatedTarget?.closest?.(popoverTrigger)) deferHide();
 });
 popup.addEventListener('pointerenter',() => clearTimeout(popTimer));
 popup.addEventListener('pointerleave',deferHide);
@@ -654,9 +921,7 @@ document.addEventListener('keydown',(event) => {
   const edge = event.target.closest('[data-edge]');
   if (edge && (event.key === 'Enter' || event.key === ' ')) {
     event.preventDefault();
-    const index = Number(edge.dataset.edge);
-    state.tab = 'review';
-    selectPage(index,{edge:index,open:true,focus:'edge'});
+    selectEdge(Number(edge.dataset.edge));
     return;
   }
   if (event.target !== canvas) return;
@@ -676,6 +941,7 @@ document.addEventListener('keydown',(event) => {
 });
 
 new ResizeObserver(() => {
+  if (!canvas.clientWidth) return;
   hidePopover();
   if (state.autoCamera) defaultCamera();
   else moveToPage(state.page,false);
@@ -683,5 +949,3 @@ new ResizeObserver(() => {
 }).observe(canvas);
 window.addEventListener('resize',() => { if (state.quick !== null && quick.open) previewSizing(); });
 document.fonts.ready.then(drawEdges);
-render();
-defaultCamera();

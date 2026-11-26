@@ -12,30 +12,69 @@
 </head>
 <body>
   <header class="topbar">
-    <button class="icon sidebar-toggle" data-action="sidebar" aria-label="화면 목록 펼치기" aria-expanded="false" data-icon="panel"></button>
+    <button class="icon sidebar-toggle project-chrome" hidden data-action="sidebar" aria-label="화면 목록 펼치기" aria-expanded="false" data-icon="panel"></button>
     <div class="identity"><span class="brand-mark" data-icon="brand"></span><span>Intent Audit</span></div>
-    <span class="divider"></span>
-    <div class="breadcrumb"><span class="muted">프로젝트</span><span data-icon="right"></span><strong>멤버십 해지</strong></div>
+    <span class="divider project-chrome" hidden></span>
+    <div class="breadcrumb project-chrome" hidden><span class="muted">프로젝트</span><span data-icon="right"></span><strong id="project-name">멤버십 해지</strong></div>
     <div class="top-actions">
       <span class="demo-label"><i></i> 분석용 데모</span>
-      <button class="icon top-reset" data-action="reset" aria-label="시연 초기화" title="시연 초기화" data-icon="reset"></button>
-      <button class="button agent-toggle" data-action="agent" data-icon="agent" aria-expanded="true">AI 에이전트</button>
+      <button class="icon project-chrome" hidden data-action="projects" aria-label="프로젝트 열기" title="프로젝트 열기" data-icon="box"></button>
+      <button class="icon top-reset project-chrome" hidden data-action="reset" aria-label="시연 초기화" title="시연 초기화" data-icon="reset"></button>
+      <button class="button agent-toggle project-chrome" hidden data-action="agent" data-icon="agent" aria-expanded="true">AI 에이전트</button>
     </div>
   </header>
-  <div class="workspace">
+  <main class="project-entry" id="project-entry">
+    <section class="entry-panel" id="project-picker" aria-labelledby="entry-title">
+      <span class="project-icon" data-icon="route"></span>
+      <h1 id="entry-title" tabindex="-1">프로젝트를 열어보세요</h1>
+      <p>가입과 해지 동선을 비교하고, 사용자 선택을 어렵게 만드는 구간을 살펴보세요.</p>
+      <div class="project-drop" id="project-drop">
+        <span data-icon="box"></span>
+        <strong>프로젝트 폴더를 여기에 놓으세요</strong>
+        <input id="project-folder" type="file" webkitdirectory multiple hidden>
+        <button class="button primary" id="pick-folder">프로젝트 폴더 불러오기</button>
+        <span class="muted" id="project-feedback" role="status"></span>
+      </div>
+      <p class="entry-note">폴더 이름과 일부 파일명만 사용합니다. 분석 결과는 멤버십 샘플 데이터로 표시합니다.</p>
+      <button class="button secondary" id="sample-project" data-icon="right">샘플 프로젝트로 시작하기</button>
+      <section class="recent-projects" aria-labelledby="recent-title">
+        <h2 id="recent-title">최근 프로젝트</h2>
+        <div id="recent-projects"></div>
+      </section>
+    </section>
+    <section class="entry-panel analysis-panel" id="project-analysis" aria-labelledby="analysis-title" hidden>
+      <span class="project-icon" data-icon="agent"></span>
+      <h1 id="analysis-title" tabindex="-1">프로젝트 분석 중</h1>
+      <p>시뮬레이션 데모 · 샘플 데이터로 분석 과정을 보여줍니다.</p>
+      <div class="analysis-label"><strong id="analysis-project"></strong><span id="analysis-percent">0%</span></div>
+      <progress id="analysis-progress" max="100" value="0" aria-label="분석 진행률"></progress>
+      <ol id="analysis-steps"></ol>
+      <div class="analysis-log" id="analysis-log" role="status"></div>
+      <button class="button secondary" id="cancel-analysis">프로젝트 선택으로 돌아가기</button>
+    </section>
+  </main>
+  <div class="workspace" hidden>
     <aside class="sidebar" aria-label="프로젝트 탐색">
       <div class="project"><span class="project-icon" data-icon="route"></span><div><strong>멤버십 해지</strong><small>모바일 서비스 · 가상 프로젝트</small></div></div>
-      <div class="side-group-title"><span>동선 화면</span><span>06</span></div>
+      <div class="side-group-title"><span>동선 화면</span><span id="page-count">06</span></div>
       <nav id="page-list" aria-label="동선 화면"></nav>
       <div class="side-group-title findings-title"><span>검토할 요소</span><span id="issue-count">04</span></div>
       <nav id="issue-list" aria-label="검토할 요소"></nav>
+      <div class="side-group-title flow-findings"><span>동선 검토</span><span id="flow-count">02</span></div>
+      <nav id="flow-issues" aria-label="동선 검토"></nav>
       <button class="about-link" data-action="about" data-icon="info">프로젝트 정보</button>
     </aside>
     <main class="main">
       <section class="canvas-header" aria-labelledby="page-title">
         <div class="view-label"><span data-icon="route"></span> 사용자 동선</div>
         <h1 id="page-title">멤버십 해지 여정</h1>
-        <p>계정에서 해지 완료까지, 사용자의 선택을 따라가 보세요.</p>
+        <p id="page-description">계정에서 해지 완료까지, 사용자의 선택을 따라가 보세요.</p>
+        <div class="route-switch" role="group" aria-label="멤버십 동선 보기">
+          <button data-route="cancel" aria-pressed="true">해지</button>
+          <button data-route="join" aria-pressed="false">가입</button>
+          <button data-route="compare" aria-pressed="false">가입·해지 비교</button>
+        </div>
+        <div class="route-comparison" id="route-comparison" hidden></div>
         <div class="canvas-meta">
           <span class="legend"><i class="risk-dot"></i> 고위험</span>
           <span class="legend"><i class="suspect-dot"></i> 맥락 확인</span>
@@ -70,5 +109,6 @@
   <div class="popover" id="popover" role="region" aria-label="검토 요소 상세" hidden></div>
   <dialog id="quick" aria-labelledby="quick-title"></dialog>
   <script src="app.js"></script>
+  <script src="project.js"></script>
 </body>
 </html>
